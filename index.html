@@ -1,10 +1,398 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>내 첫 웹사이트</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>크리스마스 선물을 위하여</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+            background: #f6f8fa;
+            color: #222;
+        }
+        .screen {
+            display: none;
+            min-height: 100%;
+        }
+        .screen.active { display: flex; }
+        .center {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            width: 100%;
+            max-width: 560px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            padding: 24px;
+            text-align: center;
+        }
+        h1 {
+            margin: 0 0 16px;
+            font-size: 24px;
+        }
+        p { margin: 0 0 24px; font-size: 16px; }
+        .primary-btn {
+            display: inline-block;
+            padding: 14px 20px;
+            font-size: 18px;
+            font-weight: 700;
+            background: #e11d48; /* rose-600 */
+            color: #fff;
+            border: none;
+            border-radius: 999px;
+            width: 100%;
+            max-width: 360px;
+            cursor: pointer;
+            transition: transform .05s ease, box-shadow .2s ease, background .2s ease;
+            box-shadow: 0 6px 14px rgba(225, 29, 72, 0.35);
+        }
+        .primary-btn:active { transform: translateY(1px); }
+        .question {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .subtle { color: #6b7280; font-size: 14px; }
+        /* 선택지 그리드 */
+        .choices-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .choice-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            color: inherit;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 10px;
+            cursor: pointer;
+            transition: transform .05s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+        }
+        .choice-btn:focus { outline: 3px solid #fb7185; outline-offset: 2px; }
+        .choice-btn:active { transform: translateY(1px); }
+        .choice-btn img {
+            width: 100%;
+            height: auto;
+            max-height: 160px;
+            object-fit: contain;
+        }
+        .choice-caption {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        @media (prefers-color-scheme: dark) {
+            html, body { background: #0b0f14; color: #e5e7eb; }
+            .card { background: #111827; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+            .subtle { color: #9ca3af; }
+            .choice-btn { background: #0f172a; border-color: #334155; }
+        }
+        /* 음성 인식 UI (무이치로 전용) */
+        .record-wrap { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .record-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 999px;
+            border: none;
+            background: #ef4444; /* red-500 */
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 6px 14px rgba(239, 68, 68, .35);
+            transition: transform .05s ease, background .2s ease, box-shadow .2s ease;
+        }
+        .record-btn:active { transform: translateY(1px); }
+        .record-btn[disabled] { opacity: .6; cursor: not-allowed; box-shadow: none; }
+        .status-text { font-size: 14px; color: #6b7280; }
+        .transcript {
+            width: 100%;
+            text-align: left;
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px;
+            min-height: 72px;
+            white-space: pre-wrap;
+        }
+        @media (prefers-color-scheme: dark) {
+            .transcript { background: #0f172a; border-color: #334155; }
+        }
+    </style>
+    <script>
+        function show(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            const el = document.getElementById(screenId);
+            if (el) el.classList.add('active');
+        }
+        const characters = [
+            { slug: 'kamado-nezuko', src: 'images/characters/kamado_nezuko.png', label: '카마도 네즈코', nextQuestion: '네즈코를 좋아하는 가장 큰 이유는 무엇인가요?' },
+            { slug: 'kamado-tanjiro', src: 'images/characters/kamado_tanjiro.png', label: '카마도 탄지로', nextQuestion: '탄지로처럼 착한 행동 한 가지를 적어볼까요?' },
+            { slug: 'tokito-muichiro', src: 'images/characters/tokito_muichiro.png', label: '토키토 무이치로', nextQuestion: '무이치로의 매력 포인트는 무엇일까요?' },
+            { slug: 'tomioka-giyu', src: 'images/characters/tomioka_giyu.png', label: '토미오카 기유', nextQuestion: '기유의 가장 멋진 순간은 언제였나요?' },
+        ];
+
+        // Web Speech API (무이치로 전용)
+        let muichiroRecognition = null;
+        let muichiroRecognizing = false;
+        let muichiroBound = false;
+
+        function getSpeechRecognition() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) return null;
+            if (muichiroRecognition) return muichiroRecognition;
+            const rec = new SR();
+            rec.lang = 'ko-KR';
+            rec.interimResults = true;
+            rec.continuous = true;
+
+            const statusEl = () => document.getElementById('muichiro-status');
+            const btnEl = () => document.getElementById('muichiro-record-btn');
+            const outEl = () => document.getElementById('muichiro-transcript');
+
+            rec.onstart = () => {
+                muichiroRecognizing = true;
+                if (statusEl()) statusEl().textContent = '녹음 중… 안개의 호흡을 읊어보아요!';
+                if (btnEl()) btnEl().textContent = '녹음 중지';
+            };
+            rec.onend = () => {
+                muichiroRecognizing = false;
+                if (statusEl()) statusEl().textContent = '인식 종료됨';
+                if (btnEl()) btnEl().textContent = '녹음 시작';
+            };
+            rec.onerror = (e) => {
+                if (statusEl()) statusEl().textContent = `오류: ${e.error || '알 수 없음'}`;
+            };
+            rec.onresult = (event) => {
+                let finalText = '';
+                let interimText = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const res = event.results[i];
+                    if (res.isFinal) finalText += res[0].transcript;
+                    else interimText += res[0].transcript;
+                }
+                const out = outEl();
+                if (out) {
+                    const base = out.dataset.base || '';
+                    out.textContent = (base + ' ' + finalText + (interimText ? ' ' + interimText : '')).trim();
+                }
+            };
+            muichiroRecognition = rec;
+            return rec;
+        }
+
+        function muichiroToggleRecording() {
+            const rec = getSpeechRecognition();
+            const btn = document.getElementById('muichiro-record-btn');
+            const status = document.getElementById('muichiro-status');
+            if (!rec) {
+                if (status) status.textContent = '이 브라우저는 음성 인식을 지원하지 않아요 😢 (Chrome/Android 권장)';
+                if (btn) btn.disabled = true;
+                return;
+            }
+            if (muichiroRecognizing) {
+                try { rec.stop(); } catch {}
+            } else {
+                try {
+                    // iOS Safari 등은 사용자 제스처가 필요할 수 있음
+                    rec.start();
+                } catch (e) {
+                    if (status) status.textContent = '시작할 수 없어요. 브라우저 권한을 확인해주세요.';
+                }
+            }
+        }
+
+        function initMuichiroScreen() {
+            // 요소가 없으면 무시
+            const btn = document.getElementById('muichiro-record-btn');
+            const status = document.getElementById('muichiro-status');
+            const out = document.getElementById('muichiro-transcript');
+            if (!btn || !status || !out) return;
+
+            // 한 번만 이벤트 바인딩
+            if (!muichiroBound) {
+                btn.addEventListener('click', muichiroToggleRecording);
+                muichiroBound = true;
+            }
+            // 초기 상태 리셋
+            status.textContent = '대기 중';
+            btn.textContent = '녹음 시작';
+            btn.disabled = false;
+            out.textContent = '';
+
+            // 지원 여부 표시
+            if (!getSpeechRecognition()) {
+                status.textContent = '이 브라우저는 음성 인식을 지원하지 않아요 😢 (Chrome/Android 권장)';
+                btn.disabled = true;
+            }
+        }
+
+        function teardownMuichiro() {
+            if (muichiroRecognition && muichiroRecognizing) {
+                try { muichiroRecognition.stop(); } catch {}
+            }
+        }
+
+        function ensureCharacterScreensOnce() {
+            // 각 캐릭터 전용 질문 화면을 1회만 생성
+            if (document.body.dataset.charScreens === 'true') return;
+            const frag = document.createDocumentFragment();
+            characters.forEach(c => {
+                const main = document.createElement('main');
+                main.id = `char-${c.slug}`;
+                main.className = 'screen';
+                main.setAttribute('aria-live', 'polite');
+                if (c.slug === 'tokito-muichiro') {
+                    main.innerHTML = `
+                        <div class="center">
+                            <div class="card" role="region" aria-labelledby="title-${c.slug}">
+                                <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
+                                <p class="subtle">시유니가 토키토 무이치로라고 생각했을 때, <br> 선물의 비밀번호를 알아내기위한 안개의 호흡 주문을 읊어보자!</p>
+                                <div class="record-wrap">
+                                    <button id="muichiro-record-btn" type="button" class="record-btn" aria-live="polite">녹음 시작</button>
+                                    <div id="muichiro-status" class="status-text" aria-live="polite">대기 중</div>
+                                    <div id="muichiro-transcript" class="transcript" role="textbox" aria-label="인식된 주문 텍스트"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    main.innerHTML = `
+                        <div class="center">
+                            <div class="card" role="region" aria-labelledby="title-${c.slug}">
+                                <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
+                                <p class="subtle">다음 질문: ${c.nextQuestion}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                frag.appendChild(main);
+            });
+            document.body.appendChild(frag);
+            document.body.dataset.charScreens = 'true';
+        }
+
+        function renderChoicesOnce() {
+            const container = document.getElementById('choicesContainer');
+            if (!container || container.dataset.rendered === 'true') return;
+            const frag = document.createDocumentFragment();
+            characters.forEach((c, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'choice-btn';
+                btn.setAttribute('role', 'option');
+                btn.setAttribute('aria-label', c.label);
+                btn.dataset.index = String(idx);
+                const img = document.createElement('img');
+                img.src = c.src;
+                img.alt = c.label;
+                const cap = document.createElement('div');
+                cap.className = 'choice-caption';
+                cap.textContent = c.label;
+                btn.appendChild(img);
+                btn.appendChild(cap);
+                btn.addEventListener('click', () => {
+                    // 선택 시 캐릭터 전용 질문 화면으로 이동
+                    goToCharacter(c.slug);
+                });
+                frag.appendChild(btn);
+            });
+            container.appendChild(frag);
+            container.dataset.rendered = 'true';
+        }
+        function goToCharacter(slug) {
+            const c = characters.find(x => x.slug === slug);
+            if (!c) return;
+            ensureCharacterScreensOnce();
+            show(`char-${slug}`);
+            document.title = `${c.label} · 다음 질문`;
+            if (history.pushState) {
+                history.pushState({screen: 'char', slug}, '', `#char/${slug}`);
+            }
+            if (slug === 'tokito-muichiro') initMuichiroScreen(); else teardownMuichiro();
+        }
+        function goToQuestion() {
+            show('questionScreen');
+            document.title = '가장 좋아하는 캐릭터';
+            if (history.pushState) {
+                history.pushState({screen: 'question'}, '', '#question');
+            }
+            renderChoicesOnce();
+            teardownMuichiro();
+        }
+        function routeByHash() {
+            const h = location.hash || '';
+            if (h === '#question') {
+                show('questionScreen');
+                renderChoicesOnce();
+                document.title = '가장 좋아하는 캐릭터';
+                teardownMuichiro();
+                return;
+            }
+            if (h.startsWith('#char/')) {
+                const slug = h.split('/')[1]?.replace(/^#char/, '').replace(/^\//, '') || '';
+                if (slug) {
+                    ensureCharacterScreensOnce();
+                    const exists = characters.some(c => c.slug === slug);
+                    if (exists) {
+                        show(`char-${slug}`);
+                        const c = characters.find(c => c.slug === slug);
+                        document.title = `${c.label} · 다음 질문`;
+                        if (slug === 'tokito-muichiro') initMuichiroScreen(); else teardownMuichiro();
+                        return;
+                    }
+                }
+            }
+            show('homeScreen');
+            document.title = '크리스마스 선물';
+            teardownMuichiro();
+        }
+        window.addEventListener('popstate', routeByHash);
+        window.addEventListener('DOMContentLoaded', () => {
+            renderChoicesOnce();
+            ensureCharacterScreensOnce();
+            routeByHash();
+        });
+    </script>
+    <meta name="theme-color" content="#e11d48" />
 </head>
 <body>
-    <h1>안녕하세요!</h1>
-    <p>GitHub Pages로 만든 웹 페이지입니다!!</p>
+    <!-- 첫 화면 -->
+    <main id="homeScreen" class="screen active">
+        <div class="center">
+            <div class="card" role="region" aria-labelledby="main-title">
+                <h1 id="main-title">메리 크리스마스 🎄</h1>
+                <p class="subtle">선물을 열기 전에 비밀 미션이 있어요!</p>
+                <button type="button" class="primary-btn" onclick="goToQuestion()">선물의 비밀번호 알아내기 Go Go!</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- 질문 화면 -->
+    <main id="questionScreen" class="screen" aria-live="polite">
+        <div class="center">
+            <div class="card" role="region" aria-labelledby="question-title">
+                <h1 id="question-title" class="question">시유니가 가장 좋아하는 캐릭터를 골라주세요</h1>
+                <div id="choicesContainer" class="choices-grid" role="listbox" aria-label="캐릭터 선택"></div>
+            </div>
+        </div>
+    </main>
 </body>
 </html>
