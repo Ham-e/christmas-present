@@ -204,13 +204,20 @@
             { slug: 'tomioka-giyu', src: 'images/characters/tomioka_giyu.png', label: '토미오카 기유', nextQuestion: '기유의 가장 멋진 순간은 언제였나요?' },
         ];
 
-        // Web Speech API (무이치로 전용)
+        // Web Speech API (무이치로/기유 전용)
         let muichiroRecognition = null;
         let muichiroRecognizing = false;
         let muichiroBound = false;
         let muichiroSuccessShown = false;
+        let giyuRecognition = null;
+        let giyuRecognizing = false;
+        let giyuBound = false;
+        let giyuSuccessShown = false;
         // 비밀번호 화면 전 로딩 전환용 타이머
         let passwordLoadingTimer = null;
+        // 비밀번호 화면 진입 출처(탄지로/무이치로/기유)를 추적해 안내 문구를 분기
+        // 값 예: 'tanjiro' | 'muichiro' | 'giyu' | null
+        let lastPasswordSource = null;
 
         // 성공 키워드 판정: "호흡" AND ("안개" OR "안대")
         function muichiroMatchesSuccessKeywords(text) {
@@ -219,6 +226,13 @@
             const hasBreath = normalized.includes('호흡');
             const hasFogOrAlt = normalized.includes('안개') || normalized.includes('안대');
             return hasBreath && hasFogOrAlt;
+        }
+
+        // 성공 키워드 판정(기유): "물" AND "호흡"
+        function giyuMatchesSuccessKeywords(text) {
+            if (!text) return false;
+            const normalized = String(text).replace(/\s+/g, '').toLowerCase();
+            return normalized.includes('호흡') && normalized.includes('물');
         }
 
         function getSpeechRecognition() {
@@ -241,7 +255,7 @@
             };
             rec.onend = () => {
                 muichiroRecognizing = false;
-                if (statusEl()) statusEl().textContent = '인식 종료됨';
+                // if (statusEl()) statusEl().textContent = '인식 종료됨';
                 if (btnEl()) btnEl().textContent = '녹음 시작';
             };
             rec.onerror = (e) => {
@@ -270,6 +284,8 @@
                         if (status) status.textContent = '성공! 주문이 인식되었어요 🎉';
                         // 잠깐의 UI 반영 후 로딩 화면 -> 비밀번호 화면으로 이동
                         setTimeout(() => {
+                            // 출처 표시: 무이치로 성공 경로
+                            lastPasswordSource = 'muichiro';
                             showLoadingBeforePassword();
                         }, 400);
                     } else if (finalText && !success) {
@@ -280,6 +296,68 @@
                 }
             };
             muichiroRecognition = rec;
+            return rec;
+        }
+
+        // 기유용 음성 인식기 생성/반환
+        function getGiyuSpeechRecognition() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) return null;
+            if (giyuRecognition) return giyuRecognition;
+            const rec = new SR();
+            rec.lang = 'ko-KR';
+            rec.interimResults = true;
+            rec.continuous = true;
+
+            const statusEl = () => document.getElementById('giyu-status');
+            const btnEl = () => document.getElementById('giyu-record-btn');
+            const outEl = () => document.getElementById('giyu-transcript');
+
+            rec.onstart = () => {
+                giyuRecognizing = true;
+                if (statusEl()) statusEl().textContent = '녹음 중… 주문을 읊어보아요!';
+                if (btnEl()) btnEl().textContent = '녹음 중지';
+            };
+            rec.onend = () => {
+                giyuRecognizing = false;
+                if (btnEl()) btnEl().textContent = '녹음 시작';
+            };
+            rec.onerror = (e) => {
+                if (statusEl()) statusEl().textContent = `오류: ${e.error || '알 수 없음'}`;
+            };
+            rec.onresult = (event) => {
+                let finalText = '';
+                let interimText = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const res = event.results[i];
+                    if (res.isFinal) finalText += res[0].transcript;
+                    else interimText += res[0].transcript;
+                }
+                const out = outEl();
+                if (out) {
+                    const base = out.dataset.base || '';
+                    const combined = (base + ' ' + finalText + (interimText ? ' ' + interimText : '')).trim();
+                    out.textContent = combined;
+
+                    // 키워드 감지: ("물" & "호흡")
+                    const success = giyuMatchesSuccessKeywords(combined);
+                    if (!giyuSuccessShown && success) {
+                        giyuSuccessShown = true;
+                        try { rec.stop(); } catch {}
+                        const status = document.getElementById('giyu-status');
+                        if (status) status.textContent = '성공! 주문이 인식되었어요 🎉';
+                        setTimeout(() => {
+                            // 출처 표시: 기유 성공 경로
+                            lastPasswordSource = 'giyu';
+                            showLoadingBeforePassword();
+                        }, 400);
+                    } else if (finalText && !success) {
+                        const status = document.getElementById('giyu-status');
+                        if (status) status.textContent = '다시 도전해 주세요!';
+                    }
+                }
+            };
+            giyuRecognition = rec;
             return rec;
         }
 
@@ -297,6 +375,26 @@
             } else {
                 try {
                     // iOS Safari 등은 사용자 제스처가 필요할 수 있음
+                    rec.start();
+                } catch (e) {
+                    if (status) status.textContent = '시작할 수 없어요. 브라우저 권한을 확인해주세요.';
+                }
+            }
+        }
+
+        function giyuToggleRecording() {
+            const rec = getGiyuSpeechRecognition();
+            const btn = document.getElementById('giyu-record-btn');
+            const status = document.getElementById('giyu-status');
+            if (!rec) {
+                if (status) status.textContent = '이 브라우저는 음성 인식을 지원하지 않아요 😢 (Chrome/Android 권장)';
+                if (btn) btn.disabled = true;
+                return;
+            }
+            if (giyuRecognizing) {
+                try { rec.stop(); } catch {}
+            } else {
+                try {
                     rec.start();
                 } catch (e) {
                     if (status) status.textContent = '시작할 수 없어요. 브라우저 권한을 확인해주세요.';
@@ -336,6 +434,34 @@
             }
         }
 
+        function initGiyuScreen() {
+            const btn = document.getElementById('giyu-record-btn');
+            const status = document.getElementById('giyu-status');
+            const out = document.getElementById('giyu-transcript');
+            if (!btn || !status || !out) return;
+
+            if (!giyuBound) {
+                btn.addEventListener('click', giyuToggleRecording);
+                giyuBound = true;
+            }
+            status.textContent = '대기 중';
+            btn.textContent = '녹음 시작';
+            btn.disabled = false;
+            out.textContent = '';
+            giyuSuccessShown = false;
+
+            if (!getGiyuSpeechRecognition()) {
+                status.textContent = '이 브라우저는 음성 인식을 지원하지 않아요 😢 (Chrome/Android 권장)';
+                btn.disabled = true;
+            }
+        }
+
+        function teardownGiyu() {
+            if (giyuRecognition && giyuRecognizing) {
+                try { giyuRecognition.stop(); } catch {}
+            }
+        }
+
         function ensureCharacterScreensOnce() {
             // 각 캐릭터 전용 질문 화면을 1회만 생성
             if (document.body.dataset.charScreens === 'true') return;
@@ -356,6 +482,45 @@
                                     <div id="muichiro-status" class="status-text" aria-live="polite">대기 중</div>
                                     <div id="muichiro-transcript" class="transcript" role="textbox" aria-label="인식된 주문 텍스트"></div>
                                 </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (c.slug === 'tomioka-giyu') {
+                    main.innerHTML = `
+                        <div class="center">
+                            <div class="card" role="region" aria-labelledby="title-${c.slug}">
+                                <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
+                                <p class="subtle">시유니가 ${c.label}라고 생각했을 때, <br>선물의 비밀번호를 알아내기위해 주문을 읊어볼까요?</p>
+                                <div class="record-wrap">
+                                    <button id="giyu-record-btn" type="button" class="record-btn" aria-live="polite">녹음 시작</button>
+                                    <div id="giyu-status" class="status-text" aria-live="polite">대기 중</div>
+                                    <div id="giyu-transcript" class="transcript" role="textbox" aria-label="인식된 주문 텍스트"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (c.slug === 'kamado-tanjiro') {
+                    // 탄지로 전용 4지선다 퀴즈 화면
+                    main.innerHTML = `
+                        <div class="center">
+                            <div class="card" role="region" aria-labelledby="title-${c.slug}">
+                                <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
+                                <p class="subtle" style="margin-bottom:16px;">탄지로는 여동생을 인간으로 되돌리고 가족의 복수를 하기위해 OOO에 들어가게 되는데, OOO는 무엇일까?</p>
+                                <div class="choices-grid" role="group" aria-label="탄지로 퀴즈 보기">
+                                    <button type="button" class="choice-btn" aria-label="1번 귀엽대" onclick="handleTanjiroAnswer(1)">
+                                        <div class="choice-caption">1. 귀엽대</div>
+                                    </button>
+                                    <button type="button" class="choice-btn" aria-label="2번 귀살대" onclick="handleTanjiroAnswer(2)">
+                                        <div class="choice-caption">2. 귀살대</div>
+                                    </button>
+                                    <button type="button" class="choice-btn" aria-label="3번 살살대" onclick="handleTanjiroAnswer(3)">
+                                        <div class="choice-caption">3. 살살대</div>
+                                    </button>
+                                    <button type="button" class="choice-btn" aria-label="4번 기웃대" onclick="handleTanjiroAnswer(4)">
+                                        <div class="choice-caption">4. 기웃대</div>
+                                    </button>
+                                </div>
+                                <p id="tanjiro-feedback" class="subtle" aria-live="polite" style="min-height:20px; margin-top:14px;"></p>
                             </div>
                         </div>
                     `;
@@ -426,6 +591,7 @@
         function showLoadingBeforePassword() {
             // 녹음 중지 및 로딩 화면 표시(히스토리 추가 없음)
             teardownMuichiro();
+            teardownGiyu();
             clearPasswordLoadingTimer();
             show('loadingScreen');
             document.title = '잠시만요… 비밀번호 여는 중';
@@ -445,7 +611,14 @@
             if (history.pushState) {
                 history.pushState({screen: 'char', slug}, '', `#char/${slug}`);
             }
-            if (slug === 'tokito-muichiro') initMuichiroScreen(); else teardownMuichiro();
+            // 먼저 모두 정리 후 해당 캐릭터 초기화
+            teardownMuichiro();
+            teardownGiyu();
+            if (slug === 'tokito-muichiro') {
+                initMuichiroScreen();
+            } else if (slug === 'tomioka-giyu') {
+                initGiyuScreen();
+            }
             document.body.classList.remove('celebrate');
             clearPasswordLoadingTimer();
         }
@@ -458,7 +631,19 @@
                 history.pushState({screen: 'password'}, '', '#password');
             }
             teardownMuichiro();
+            teardownGiyu();
             document.body.classList.add('celebrate');
+            // 출처에 따른 안내 문구 변경
+            const subtitle = document.getElementById('password-subtitle');
+            if (subtitle) {
+                if (lastPasswordSource === 'tanjiro') {
+                    subtitle.textContent = '정답을 맞췄군요!';
+                } else {
+                    subtitle.textContent = '안개의 호흡 주문을 성공적으로 사용했네요!';
+                }
+            }
+            // 사용 후 초기화하여 다음 진입 시 오염 방지
+            lastPasswordSource = null;
             // 접근성: 제목으로 포커스 이동
             const h = document.getElementById('password-title');
             if (h) {
@@ -474,6 +659,7 @@
             }
             renderChoicesOnce();
             teardownMuichiro();
+            teardownGiyu();
             document.body.classList.remove('celebrate');
             clearPasswordLoadingTimer();
         }
@@ -484,7 +670,12 @@
                 show('passwordScreen');
                 document.title = '비밀번호 공개! 1234';
                 teardownMuichiro();
+                teardownGiyu();
                 document.body.classList.add('celebrate');
+                // 직접 진입 시 기본 문구 유지
+                const subtitle = document.getElementById('password-subtitle');
+                if (subtitle) subtitle.textContent = '안개의 호흡 주문을 성공적으로 사용했네요!';
+                lastPasswordSource = null;
                 return;
             }
             if (h === '#question') {
@@ -493,6 +684,7 @@
                 renderChoicesOnce();
                 document.title = '가장 좋아하는 캐릭터';
                 teardownMuichiro();
+                teardownGiyu();
                 document.body.classList.remove('celebrate');
                 return;
             }
@@ -506,7 +698,14 @@
                         show(`char-${slug}`);
                         const c = characters.find(c => c.slug === slug);
                         document.title = `${c.label} · 다음 질문`;
-                        if (slug === 'tokito-muichiro') initMuichiroScreen(); else teardownMuichiro();
+                        // 모두 정리 후 해당 캐릭터 초기화
+                        teardownMuichiro();
+                        teardownGiyu();
+                        if (slug === 'tokito-muichiro') {
+                            initMuichiroScreen();
+                        } else if (slug === 'tomioka-giyu') {
+                            initGiyuScreen();
+                        }
                         document.body.classList.remove('celebrate');
                         return;
                     }
@@ -515,6 +714,7 @@
             show('homeScreen');
             document.title = '크리스마스 선물';
             teardownMuichiro();
+            teardownGiyu();
             document.body.classList.remove('celebrate');
             clearPasswordLoadingTimer();
         }
@@ -524,6 +724,19 @@
             ensureCharacterScreensOnce();
             routeByHash();
         });
+        // 탄지로 퀴즈 정답 처리: 2번만 성공 → 로딩 → 비밀번호 화면
+        function handleTanjiroAnswer(choice) {
+            const feedback = document.getElementById('tanjiro-feedback');
+            if (Number(choice) === 2) {
+                if (feedback) feedback.textContent = '정답! 🎉';
+                // 출처 표시: 탄지로 정답 경로
+                lastPasswordSource = 'tanjiro';
+                // 비밀번호 공개 전 로딩 화면으로 이동
+                showLoadingBeforePassword();
+            } else {
+                if (feedback) feedback.textContent = '잘 생각해보세요! ㅎㅎㅎ';
+            }
+        }
     </script>
     <meta name="theme-color" content="#e11d48" />
 </head>
@@ -554,7 +767,7 @@
         <div class="center">
             <div class="card" role="region" aria-labelledby="password-title">
                 <h1 id="password-title">축하합니다! 🎉 비밀번호 공개</h1>
-                <p class="subtle">안개의 호흡 주문을 성공적으로 사용했네요!</p>
+                <p id="password-subtitle" class="subtle">안개의 호흡 주문을 성공적으로 사용했네요!</p>
                 <div class="pw-fireworks" aria-hidden="true">✨🎊🎉</div>
                 <div class="pw-box" aria-label="비밀번호는 1 2 3 4 입니다">
                     <span class="digit">1</span>
