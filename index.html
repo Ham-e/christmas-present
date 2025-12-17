@@ -16,6 +16,17 @@
             background: #f6f8fa;
             color: #222;
         }
+        /* 축하 배경 (비밀번호 공개 화면 전용) */
+        body.celebrate {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 25%, #ffd1ff 50%, #c2e9fb 75%, #a1c4fd 100%);
+            background-size: 300% 300%;
+            animation: bgShift 12s ease infinite;
+        }
+        @keyframes bgShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
         .screen {
             display: none;
             min-height: 100%;
@@ -103,6 +114,38 @@
             .subtle { color: #9ca3af; }
             .choice-btn { background: #0f172a; border-color: #334155; }
         }
+        /* 비밀번호 공개 스타일 */
+        #passwordScreen .card { text-align: center; }
+        .pw-fireworks { font-size: 28px; margin: 6px 0 10px; }
+        .pw-box {
+            display: inline-flex;
+            gap: 10px;
+            margin: 10px 0 6px;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12), inset 0 0 20px rgba(255,255,255,0.35);
+            backdrop-filter: blur(6px);
+        }
+        .digit {
+            width: 48px;
+            height: 64px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            font-weight: 900;
+            color: #111827;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+            text-shadow: 0 2px 0 rgba(0,0,0,0.06);
+        }
+        @media (prefers-color-scheme: dark) {
+            body.celebrate { background: linear-gradient(135deg, #1f2937 0%, #0ea5e9 40%, #8b5cf6 70%, #f472b6 100%); }
+            .pw-box { background: rgba(17,24,39,0.5); box-shadow: 0 8px 24px rgba(0,0,0,0.35), inset 0 0 16px rgba(255,255,255,0.08); }
+            .digit { background: #0b1220; color: #e5e7eb; }
+        }
         /* 음성 인식 UI (무이치로 전용) */
         .record-wrap { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
         .record-btn {
@@ -135,6 +178,18 @@
         @media (prefers-color-scheme: dark) {
             .transcript { background: #0f172a; border-color: #334155; }
         }
+        /* 로딩 화면 스타일 */
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(0,0,0,0.1);
+            border-top-color: #e11d48;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-message { font-size: 14px; color: #6b7280; }
     </style>
     <script>
         function show(screenId) {
@@ -153,6 +208,18 @@
         let muichiroRecognition = null;
         let muichiroRecognizing = false;
         let muichiroBound = false;
+        let muichiroSuccessShown = false;
+        // 비밀번호 화면 전 로딩 전환용 타이머
+        let passwordLoadingTimer = null;
+
+        // 성공 키워드 판정: "호흡" AND ("안개" OR "안대")
+        function muichiroMatchesSuccessKeywords(text) {
+            if (!text) return false;
+            const normalized = String(text).replace(/\s+/g, '').toLowerCase();
+            const hasBreath = normalized.includes('호흡');
+            const hasFogOrAlt = normalized.includes('안개') || normalized.includes('안대');
+            return hasBreath && hasFogOrAlt;
+        }
 
         function getSpeechRecognition() {
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -169,7 +236,7 @@
 
             rec.onstart = () => {
                 muichiroRecognizing = true;
-                if (statusEl()) statusEl().textContent = '녹음 중… 안개의 호흡을 읊어보아요!';
+                if (statusEl()) statusEl().textContent = '녹음 중… 주문을 읊어보아요!';
                 if (btnEl()) btnEl().textContent = '녹음 중지';
             };
             rec.onend = () => {
@@ -191,7 +258,25 @@
                 const out = outEl();
                 if (out) {
                     const base = out.dataset.base || '';
-                    out.textContent = (base + ' ' + finalText + (interimText ? ' ' + interimText : '')).trim();
+                    const combined = (base + ' ' + finalText + (interimText ? ' ' + interimText : '')).trim();
+                    out.textContent = combined;
+
+                    // 키워드 감지: ("안개" & "호흡") 또는 ("안대" & "호흡")
+                    const success = muichiroMatchesSuccessKeywords(combined);
+                    if (!muichiroSuccessShown && success) {
+                        muichiroSuccessShown = true;
+                        try { rec.stop(); } catch {}
+                        const status = document.getElementById('muichiro-status');
+                        if (status) status.textContent = '성공! 주문이 인식되었어요 🎉';
+                        // 잠깐의 UI 반영 후 로딩 화면 -> 비밀번호 화면으로 이동
+                        setTimeout(() => {
+                            showLoadingBeforePassword();
+                        }, 400);
+                    } else if (finalText && !success) {
+                        // 조건 불충족 시 재도전 메시지 표시 (최종 결과가 있을 때에만 표시)
+                        const status = document.getElementById('muichiro-status');
+                        if (status) status.textContent = '다시 도전해 주세요!';
+                    }
                 }
             };
             muichiroRecognition = rec;
@@ -236,6 +321,7 @@
             btn.textContent = '녹음 시작';
             btn.disabled = false;
             out.textContent = '';
+            muichiroSuccessShown = false;
 
             // 지원 여부 표시
             if (!getSpeechRecognition()) {
@@ -264,7 +350,7 @@
                         <div class="center">
                             <div class="card" role="region" aria-labelledby="title-${c.slug}">
                                 <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
-                                <p class="subtle">시유니가 토키토 무이치로라고 생각했을 때, <br> 선물의 비밀번호를 알아내기위한 안개의 호흡 주문을 읊어보자!</p>
+                                <p class="subtle">시유니가 ${c.label}라고 생각했을 때, <br>선물의 비밀번호를 알아내기위해 주문을 읊어볼까요?</p>
                                 <div class="record-wrap">
                                     <button id="muichiro-record-btn" type="button" class="record-btn" aria-live="polite">녹음 시작</button>
                                     <div id="muichiro-status" class="status-text" aria-live="polite">대기 중</div>
@@ -285,6 +371,20 @@
                 }
                 frag.appendChild(main);
             });
+            // 비밀번호 진입 전 잠깐 보이는 로딩 화면
+            const loading = document.createElement('main');
+            loading.id = 'loadingScreen';
+            loading.className = 'screen';
+            loading.setAttribute('aria-live', 'polite');
+            loading.innerHTML = `
+                <div class="center">
+                    <div class="card" role="status" aria-label="잠시만 기다려 주세요">
+                        <div class="loader" aria-hidden="true"></div>
+                        <div class="loading-message">비밀번호를 여는 중…</div>
+                    </div>
+                </div>
+            `;
+            frag.appendChild(loading);
             document.body.appendChild(frag);
             document.body.dataset.charScreens = 'true';
         }
@@ -317,6 +417,25 @@
             container.appendChild(frag);
             container.dataset.rendered = 'true';
         }
+        function clearPasswordLoadingTimer() {
+            if (passwordLoadingTimer) {
+                clearTimeout(passwordLoadingTimer);
+                passwordLoadingTimer = null;
+            }
+        }
+        function showLoadingBeforePassword() {
+            // 녹음 중지 및 로딩 화면 표시(히스토리 추가 없음)
+            teardownMuichiro();
+            clearPasswordLoadingTimer();
+            show('loadingScreen');
+            document.title = '잠시만요… 비밀번호 여는 중';
+            document.body.classList.remove('celebrate');
+            // 잠시 후 비밀번호 화면으로 이동
+            passwordLoadingTimer = setTimeout(() => {
+                passwordLoadingTimer = null;
+                goToPassword();
+            }, 900);
+        }
         function goToCharacter(slug) {
             const c = characters.find(x => x.slug === slug);
             if (!c) return;
@@ -327,6 +446,25 @@
                 history.pushState({screen: 'char', slug}, '', `#char/${slug}`);
             }
             if (slug === 'tokito-muichiro') initMuichiroScreen(); else teardownMuichiro();
+            document.body.classList.remove('celebrate');
+            clearPasswordLoadingTimer();
+        }
+        function goToPassword() {
+            // 비밀번호 공개 화면으로 이동
+            clearPasswordLoadingTimer();
+            show('passwordScreen');
+            document.title = '비밀번호 공개! 1234';
+            if (history.pushState) {
+                history.pushState({screen: 'password'}, '', '#password');
+            }
+            teardownMuichiro();
+            document.body.classList.add('celebrate');
+            // 접근성: 제목으로 포커스 이동
+            const h = document.getElementById('password-title');
+            if (h) {
+                h.setAttribute('tabindex', '-1');
+                h.focus({preventScroll: true});
+            }
         }
         function goToQuestion() {
             show('questionScreen');
@@ -336,14 +474,26 @@
             }
             renderChoicesOnce();
             teardownMuichiro();
+            document.body.classList.remove('celebrate');
+            clearPasswordLoadingTimer();
         }
         function routeByHash() {
             const h = location.hash || '';
+            if (h === '#password') {
+                clearPasswordLoadingTimer();
+                show('passwordScreen');
+                document.title = '비밀번호 공개! 1234';
+                teardownMuichiro();
+                document.body.classList.add('celebrate');
+                return;
+            }
             if (h === '#question') {
+                clearPasswordLoadingTimer();
                 show('questionScreen');
                 renderChoicesOnce();
                 document.title = '가장 좋아하는 캐릭터';
                 teardownMuichiro();
+                document.body.classList.remove('celebrate');
                 return;
             }
             if (h.startsWith('#char/')) {
@@ -352,10 +502,12 @@
                     ensureCharacterScreensOnce();
                     const exists = characters.some(c => c.slug === slug);
                     if (exists) {
+                        clearPasswordLoadingTimer();
                         show(`char-${slug}`);
                         const c = characters.find(c => c.slug === slug);
                         document.title = `${c.label} · 다음 질문`;
                         if (slug === 'tokito-muichiro') initMuichiroScreen(); else teardownMuichiro();
+                        document.body.classList.remove('celebrate');
                         return;
                     }
                 }
@@ -363,6 +515,8 @@
             show('homeScreen');
             document.title = '크리스마스 선물';
             teardownMuichiro();
+            document.body.classList.remove('celebrate');
+            clearPasswordLoadingTimer();
         }
         window.addEventListener('popstate', routeByHash);
         window.addEventListener('DOMContentLoaded', () => {
@@ -391,6 +545,24 @@
             <div class="card" role="region" aria-labelledby="question-title">
                 <h1 id="question-title" class="question">시유니가 가장 좋아하는 캐릭터를 골라주세요</h1>
                 <div id="choicesContainer" class="choices-grid" role="listbox" aria-label="캐릭터 선택"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 비밀번호 공개 화면 -->
+    <main id="passwordScreen" class="screen" aria-live="polite">
+        <div class="center">
+            <div class="card" role="region" aria-labelledby="password-title">
+                <h1 id="password-title">축하합니다! 🎉 비밀번호 공개</h1>
+                <p class="subtle">안개의 호흡 주문을 성공적으로 사용했네요!</p>
+                <div class="pw-fireworks" aria-hidden="true">✨🎊🎉</div>
+                <div class="pw-box" aria-label="비밀번호는 1 2 3 4 입니다">
+                    <span class="digit">1</span>
+                    <span class="digit">2</span>
+                    <span class="digit">3</span>
+                    <span class="digit">4</span>
+                </div>
+                <p class="subtle">뒤로가기로 캐릭터 선택으로 돌아갈 수 있어요.</p>
             </div>
         </div>
     </main>
