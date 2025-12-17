@@ -108,6 +108,10 @@
             font-size: 14px;
             font-weight: 600;
         }
+        /* 탄지로 퀴즈 선택지 텍스트 중앙 정렬 보정 */
+        .tanjiro-quiz .choice-caption {
+            margin-top: 0; /* 이미지 캡션용 여백 제거 → 버튼 내 정확한 수직 중앙 정렬 */
+        }
         @media (prefers-color-scheme: dark) {
             html, body { background: #0b0f14; color: #e5e7eb; }
             .card { background: #111827; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
@@ -506,7 +510,7 @@
                             <div class="card" role="region" aria-labelledby="title-${c.slug}">
                                 <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
                                 <p class="subtle" style="margin-bottom:16px;">탄지로는 여동생을 인간으로 되돌리고 가족의 복수를 하기위해 OOO에 들어가게 되는데, OOO는 무엇일까?</p>
-                                <div class="choices-grid" role="group" aria-label="탄지로 퀴즈 보기">
+                                <div class="choices-grid tanjiro-quiz" role="group" aria-label="탄지로 퀴즈 보기">
                                     <button type="button" class="choice-btn" aria-label="1번 귀엽대" onclick="handleTanjiroAnswer(1)">
                                         <div class="choice-caption">1. 귀엽대</div>
                                     </button>
@@ -627,6 +631,11 @@
             clearPasswordLoadingTimer();
             show('passwordScreen');
             document.title = '비밀번호 공개! 1234';
+            // 뒤로가기를 누르면 캐릭터 선택(#question)으로 가도록 히스토리 재배치
+            // 현재 항목(#char/...)을 #question으로 대체한 뒤, #password를 푸시합니다.
+            if (history.replaceState) {
+                try { history.replaceState({screen: 'question'}, '', '#question'); } catch {}
+            }
             if (history.pushState) {
                 history.pushState({screen: 'password'}, '', '#password');
             }
@@ -638,7 +647,10 @@
             if (subtitle) {
                 if (lastPasswordSource === 'tanjiro') {
                     subtitle.textContent = '정답을 맞췄군요!';
+                } else if (lastPasswordSource === 'giyu') {
+                    subtitle.textContent = '물의 호흡 주문을 성공적으로 사용했네요!';
                 } else {
+                    // 기본(무이치로 등): 안개의 호흡
                     subtitle.textContent = '안개의 호흡 주문을 성공적으로 사용했네요!';
                 }
             }
@@ -653,7 +665,8 @@
         }
         function goToQuestion() {
             show('questionScreen');
-            document.title = '가장 좋아하는 캐릭터';
+            // document.title = '가장 좋아하는 캐릭터';
+            document.title = '시유니여 비밀번호를 알아내라';
             if (history.pushState) {
                 history.pushState({screen: 'question'}, '', '#question');
             }
@@ -682,7 +695,8 @@
                 clearPasswordLoadingTimer();
                 show('questionScreen');
                 renderChoicesOnce();
-                document.title = '가장 좋아하는 캐릭터';
+                // document.title = '가장 좋아하는 캐릭터';
+                document.title = '시유니여 비밀번호를 알아내라';
                 teardownMuichiro();
                 teardownGiyu();
                 document.body.classList.remove('celebrate');
