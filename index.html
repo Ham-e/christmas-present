@@ -69,6 +69,27 @@
             box-shadow: 0 6px 14px rgba(225, 29, 72, 0.35);
         }
         .primary-btn:active { transform: translateY(1px); }
+        /* 홈 히어로 이미지 */
+        .hero-wrap { margin: 14px 0 18px; }
+        .hero-img {
+            width: 100%;
+            max-width: 420px;
+            height: auto;
+            display: inline-block;
+            border-radius: 16px;
+            box-shadow: 0 18px 40px rgba(0,0,0,0.12), 0 6px 16px rgba(0,0,0,0.08);
+            background: radial-gradient(120% 120% at 10% 0%, rgba(255,182,193,0.35) 0%, rgba(255,255,255,0) 60%),
+                        radial-gradient(120% 120% at 100% 100%, rgba(161,196,253,0.35) 0%, rgba(255,255,255,0) 60%);
+            padding: 6px; /* 은은한 글로우 여백 */
+            animation: floatY 5.5s ease-in-out infinite;
+        }
+        @keyframes floatY {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .hero-img { animation: none; }
+        }
         .question {
             font-size: 20px;
             font-weight: 700;
@@ -117,6 +138,7 @@
             .card { background: #111827; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
             .subtle { color: #9ca3af; }
             .choice-btn { background: #0f172a; border-color: #334155; }
+            .hero-img { box-shadow: 0 18px 40px rgba(0,0,0,0.45), 0 6px 16px rgba(0,0,0,0.35); }
         }
         /* 비밀번호 공개 스타일 */
         #passwordScreen .card { text-align: center; }
@@ -817,6 +839,15 @@
             <div class="card" role="region" aria-labelledby="main-title">
                 <h1 id="main-title">메리 크리스마스 🎄</h1>
                 <p class="subtle">선물을 열기 전에 비밀 미션이 있어요!</p>
+                <div class="hero-wrap" aria-hidden="false">
+                    <img
+                        src="images/main.png"
+                        alt="크리스마스를 기다리는 반짝이는 선물 이미지"
+                        class="hero-img"
+                        decoding="async"
+                        fetchpriority="high"
+                    />
+                </div>
                 <button type="button" class="primary-btn" onclick="goToQuestion()">선물의 비밀번호 알아내기 Go Go!</button>
             </div>
         </div>
