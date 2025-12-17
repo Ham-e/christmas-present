@@ -528,6 +528,35 @@
                             </div>
                         </div>
                     `;
+                } else if (c.slug === 'kamado-nezuko') {
+                    // 네즈코 전용 4지선다 퀴즈 화면 (이미지 보기)
+                    main.innerHTML = `
+                        <div class="center">
+                            <div class="card" role="region" aria-labelledby="title-${c.slug}">
+                                <h1 id="title-${c.slug}" class="question">좋아요! “${c.label}”를 선택했네요</h1>
+                                <p class="subtle" style="margin-bottom:16px;">다음중 네즈코의 물건은?</p>
+                                <div class="choices-grid" role="group" aria-label="네즈코 퀴즈 보기">
+                                    <button type="button" class="choice-btn" aria-label="1번 보기" onclick="handleNezukoAnswer(1)">
+                                        <img src="images/properties/1mace.png" alt="보기 1">
+                                        <div class="choice-caption">1</div>
+                                    </button>
+                                    <button type="button" class="choice-btn" aria-label="2번 보기" onclick="handleNezukoAnswer(2)">
+                                        <img src="images/properties/2nichirin.png" alt="보기 2">
+                                        <div class="choice-caption">2</div>
+                                    </button>
+                                    <button type="button" class="choice-btn" aria-label="3번 보기 (정답)" onclick="handleNezukoAnswer(3)">
+                                        <img src="images/properties/3bambu.png" alt="보기 3">
+                                        <div class="choice-caption">3</div>
+                                    </button>
+                                    <button type="button" class="choice-btn" aria-label="4번 보기" onclick="handleNezukoAnswer(4)">
+                                        <img src="images/properties/4sinobu.png" alt="보기 4">
+                                        <div class="choice-caption">4</div>
+                                    </button>
+                                </div>
+                                <p id="nezuko-feedback" class="subtle" aria-live="polite" style="min-height:20px; margin-top:14px;"></p>
+                            </div>
+                        </div>
+                    `;
                 } else {
                     main.innerHTML = `
                         <div class="center">
@@ -622,6 +651,14 @@
                 initMuichiroScreen();
             } else if (slug === 'tomioka-giyu') {
                 initGiyuScreen();
+            } else if (slug === 'kamado-tanjiro') {
+                // 탄지로 화면 진입 시 매번 정답/피드백 초기화
+                const feedback = document.getElementById('tanjiro-feedback');
+                if (feedback) feedback.textContent = '';
+            } else if (slug === 'kamado-nezuko') {
+                // 네즈코 화면 진입 시 매번 피드백 초기화
+                const nfb = document.getElementById('nezuko-feedback');
+                if (nfb) nfb.textContent = '';
             }
             document.body.classList.remove('celebrate');
             clearPasswordLoadingTimer();
@@ -645,7 +682,7 @@
             // 출처에 따른 안내 문구 변경
             const subtitle = document.getElementById('password-subtitle');
             if (subtitle) {
-                if (lastPasswordSource === 'tanjiro') {
+                if (lastPasswordSource === 'tanjiro' || lastPasswordSource === 'nezuko') {
                     subtitle.textContent = '정답을 맞췄군요!';
                 } else if (lastPasswordSource === 'giyu') {
                     subtitle.textContent = '물의 호흡 주문을 성공적으로 사용했네요!';
@@ -719,6 +756,14 @@
                             initMuichiroScreen();
                         } else if (slug === 'tomioka-giyu') {
                             initGiyuScreen();
+                        } else if (slug === 'kamado-tanjiro') {
+                            // 해시로 직접 진입/뒤로가기로 진입 시에도 피드백 초기화
+                            const feedback = document.getElementById('tanjiro-feedback');
+                            if (feedback) feedback.textContent = '';
+                        } else if (slug === 'kamado-nezuko') {
+                            // 네즈코 화면 진입 시 피드백 초기화
+                            const nfb = document.getElementById('nezuko-feedback');
+                            if (nfb) nfb.textContent = '';
                         }
                         document.body.classList.remove('celebrate');
                         return;
@@ -751,6 +796,17 @@
                 if (feedback) feedback.textContent = '잘 생각해보세요! ㅎㅎㅎ';
             }
         }
+        // 네즈코 퀴즈 정답 처리: 3번만 성공 → 로딩 → 비밀번호 화면
+        function handleNezukoAnswer(choice) {
+            const feedback = document.getElementById('nezuko-feedback');
+            if (Number(choice) === 3) {
+                if (feedback) feedback.textContent = '정답! 🎉';
+                lastPasswordSource = 'nezuko';
+                showLoadingBeforePassword();
+            } else {
+                if (feedback) feedback.textContent = '잘 생각해보세요!ㅎㅎㅎ';
+            }
+        }
     </script>
     <meta name="theme-color" content="#e11d48" />
 </head>
@@ -780,7 +836,7 @@
     <main id="passwordScreen" class="screen" aria-live="polite">
         <div class="center">
             <div class="card" role="region" aria-labelledby="password-title">
-                <h1 id="password-title">축하합니다! 🎉 비밀번호 공개</h1>
+                <h1 id="password-title">축하합니다! 🎉 <br>비밀번호 공개</h1>
                 <p id="password-subtitle" class="subtle">안개의 호흡 주문을 성공적으로 사용했네요!</p>
                 <div class="pw-fireworks" aria-hidden="true">✨🎊🎉</div>
                 <div class="pw-box" aria-label="비밀번호는 1 2 3 4 입니다">
