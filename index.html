@@ -689,7 +689,7 @@
             // 비밀번호 공개 화면으로 이동
             clearPasswordLoadingTimer();
             show('passwordScreen');
-            document.title = '비밀번호 공개! 1234';
+            document.title = '비밀번호 공개!';
             // 뒤로가기를 누르면 캐릭터 선택(#question)으로 가도록 히스토리 재배치
             // 현재 항목(#char/...)을 #question으로 대체한 뒤, #password를 푸시합니다.
             if (history.replaceState) {
@@ -740,7 +740,7 @@
             if (h === '#password') {
                 clearPasswordLoadingTimer();
                 show('passwordScreen');
-                document.title = '비밀번호 공개! 1234';
+                document.title = '비밀번호 공개!';
                 teardownMuichiro();
                 teardownGiyu();
                 document.body.classList.add('celebrate');
@@ -870,11 +870,10 @@
                 <h1 id="password-title">축하합니다! 🎉 <br>비밀번호 공개</h1>
                 <p id="password-subtitle" class="subtle">안개의 호흡 주문을 성공적으로 사용했네요!</p>
                 <div class="pw-fireworks" aria-hidden="true">✨🎊🎉</div>
-                <div class="pw-box" aria-label="비밀번호는 1 2 3 4 입니다">
+                <div class="pw-box" aria-label="비밀번호는 1 1 7 입니다">
                     <span class="digit">1</span>
-                    <span class="digit">2</span>
-                    <span class="digit">3</span>
-                    <span class="digit">4</span>
+                    <span class="digit">1</span>
+                    <span class="digit">7</span>
                 </div>
                 <p class="subtle">뒤로가기로 캐릭터 선택으로 돌아갈 수 있어요.</p>
             </div>
